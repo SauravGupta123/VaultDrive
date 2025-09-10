@@ -30,7 +30,9 @@ func watchFolder(cfg *Config) {
 			}
 
 			// Debug log
-			log.Printf("[EVENT] %s → %s\n", event.Op, event.Name)
+			if event.Op != fsnotify.Chmod {
+				log.Printf("[EVENT] %s → %s\n", event.Op, event.Name)
+			}
 
 			switch {
 			case event.Op&fsnotify.Create == fsnotify.Create,
