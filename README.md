@@ -10,6 +10,7 @@ A real-time file synchronization tool built with Go that automatically uploads f
 - [Architecture](#architecture)
 - [Installation](#installation)
 - [Usage](#usage)
+- [CLI Commands](#cli-commands)
 - [Configuration](#configuration)
 - [Testing Concurrency](#testing-concurrency)
 - [Building from Source](#building-from-source)
@@ -26,6 +27,10 @@ File Synchronizer is a lightweight, efficient file synchronization tool that mon
 - **Graceful Shutdown**: Handles termination signals properly to ensure all uploads complete
 - **Cross-platform Compatibility**: Works on Windows, macOS, and Linux
 - **File Persistence**: Stores uploaded files on the server with proper directory structure
+- **CLI Interface**: Command-line interface with multiple subcommands for different operations
+- **File Listing**: List files stored on the server with metadata
+- **Status Comparison**: Compare local and server files to see synchronization status
+- **Single File Upload**: Upload individual files on demand
 - **Logging**: Comprehensive logging for monitoring and debugging
 - **Error Handling**: Robust error handling for network and file operations
 
@@ -35,6 +40,7 @@ File Synchronizer is a lightweight, efficient file synchronization tool that mon
 - **fsnotify**: File system notifications library
 - **net/http**: Built-in HTTP client and server
 - **mime/multipart**: Multipart form data handling
+- **Cobra**: CLI library for command-line interface
 
 ## Architecture
 
@@ -45,11 +51,13 @@ The application consists of two main components:
 - Uses a worker pool pattern with goroutines for concurrent file uploads
 - Communicates with the server via HTTP REST API
 - Handles graceful shutdown on interrupt signals
+- Provides CLI interface with multiple subcommands
 
 ### Server
 - Receives file upload and delete requests via HTTP endpoints
 - Stores files in a configurable directory
 - Provides REST API endpoints for file operations
+- Lists files with metadata (name, size, modification time)
 
 ## Installation
 
@@ -77,9 +85,13 @@ The application consists of two main components:
    ./server/server
    ```
 
-4. Run the client (in a new terminal):
+4. Run the client:
    ```bash
-   ./client/client
+   # For automatic file watching
+   ./client/client watch
+   
+   # Or use CLI commands
+   ./client/client list
    ```
 
 ## Usage
@@ -96,17 +108,85 @@ The application consists of two main components:
 
 ### Starting the Client
 
+The client now works as a CLI tool with multiple subcommands:
+
 ```bash
-# Basic usage (uses default server URL http://localhost:9090 and watch directory ./myfolder)
-./client/client
+# Show help
+./client/client --help
+
+# Watch local directory for changes (previous behavior)
+./client/client watch
+
+# List files on server
+./client/client list
+
+# Show sync status
+./client/client status
+
+# Upload a single file
+./client/client push <filename>
 ```
 
-### Testing the Synchronization
+## CLI Commands
 
-1. Create or modify files in the client's watch directory (`./myfolder` by default)
-2. Observe the logs showing file uploads
-3. Check that files appear in the server's storage directory (`./data/synced` by default)
-4. Delete files from the watch directory and observe them being removed from the server
+### `sync list`
+
+Lists all files stored on the server with their metadata.
+
+```bash
+./client/client list
+```
+
+Output example:
+```
+NAME                           SIZE       MODIFIED            
+-----------------------------------------------------------------
+document.pdf                   102400     2025-09-10 14:30:25
+image.jpg                      204800     2025-09-10 14:32:10
+notes.txt                      1024       2025-09-10 14:35:45
+```
+
+### `sync status`
+
+Compares local files with server files and shows synchronization status.
+
+```bash
+./client/client status
+```
+
+Output example:
+```
+=== SYNC STATUS ===
+
+Local only:
+  local-file.txt (2048 bytes)
+
+Server only:
+  server-file.pdf (5120 bytes)
+
+Synced:
+  document.pdf (102400 bytes)
+```
+
+### `sync push <file>`
+
+Uploads a single file to the server.
+
+```bash
+# Upload file from local watch directory
+./client/client push document.pdf
+
+# Upload file with absolute path
+./client/client push /path/to/file.txt
+```
+
+### `sync watch`
+
+Runs the file watcher that automatically synchronizes files when they change.
+
+```bash
+./client/client watch
+```
 
 ## Configuration
 
@@ -114,7 +194,7 @@ The application consists of two main components:
 
 The client configuration is hardcoded in `client/config.go`:
 - **Server URL**: `http://localhost:9090`
-- **Watch Directory**: `./myfolder`
+- **Watch Directory**: `./client/myfolder`
 
 ### Server Configuration
 
@@ -131,9 +211,9 @@ To test the concurrent file upload feature:
    ./server/server
    ```
 
-2. Start the client:
+2. Start the client in watch mode:
    ```bash
-   ./client/client
+   ./client/client watch
    ```
 
 3. Create multiple files simultaneously:
@@ -203,7 +283,7 @@ GOOS=darwin GOARCH=amd64 go build -o server/server ./server
 FileSync/
 ├── client/
 │   ├── config.go        # Client configuration
-│   ├── main.go          # Client entry point
+│   ├── main.go          # Client entry point with CLI commands
 │   ├── uploader.go      # File upload/delete functions
 │   ├── watcher.go       # File system watcher with worker pool
 │   └── myfolder/        # Default directory to watch for changes
@@ -227,6 +307,7 @@ FileSync/
 
 - `POST /upload` - Upload a file
 - `DELETE /delete?name={filename}` - Delete a file
+- `GET /list` - List files with metadata
 
 ## Logging
 
@@ -234,10 +315,10 @@ Both client and server provide detailed logging:
 
 ### Client Logs
 ```
-[CONFIG] Server: http://localhost:9090 | WatchDir: ./myfolder
-[INFO] Creating directory: ./myfolder
-[WATCH] Watching folder: ./myfolder with 3 workers
-[EVENT] CREATE → /path/to/myfolder/test.txt
+[CONFIG] Server: http://localhost:9090 | WatchDir: ./client/myfolder
+[INFO] Creating directory: ./client/myfolder
+[WATCH] Watching folder: ./client/myfolder with 3 workers
+[EVENT] CREATE → /path/to/client/myfolder/test.txt
 [Worker-1] starting upload test.txt
 [Worker-1] finished test.txt
 ```

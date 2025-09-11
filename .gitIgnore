@@ -1,2 +1,5 @@
 server/data
 client/myfolder
+client/sync
+client/client
+server/server 
