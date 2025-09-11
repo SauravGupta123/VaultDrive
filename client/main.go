@@ -61,7 +61,17 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(listCmd, statusCmd, pushCmd, watchCmd)
+	var syncCmd = &cobra.Command{
+		Use:   "pull",
+		Short: "Run a one-time two-way synchronization",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := syncPull(cfg); err != nil {
+				log.Fatalf("[ERROR] Sync failed: %v", err)
+			}
+		},
+	}
+
+	rootCmd.AddCommand(listCmd, statusCmd, pushCmd, watchCmd, syncCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
