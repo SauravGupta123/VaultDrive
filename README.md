@@ -76,22 +76,13 @@ The application consists of two main components:
 
 2. Build both client and server:
    ```bash
-   go build -o client/client ./client
+   go build -o  sync ./client
    go build -o server/server ./server
    ```
+3. Setting alias to the terminal
 
-3. Run the server:
-   ```bash
-   ./server/server
-   ```
-
-4. Run the client:
-   ```bash
-   # For automatic file watching
-   ./client/client watch
-   
-   # Or use CLI commands
-   ./client/client list
+ ```bash
+     alias sync="/Users/path_to_sync/"
    ```
 
 ## Usage
@@ -112,19 +103,19 @@ The client now works as a CLI tool with multiple subcommands:
 
 ```bash
 # Show help
-./client/client --help
+sync --help
 
 # Watch local directory for changes (previous behavior)
-./client/client watch
+sync watch
 
 # List files on server
-./client/client list
+sync list
 
 # Show sync status
-./client/client status
+sync status
 
 # Upload a single file
-./client/client push <filename>
+sync push <filename>
 ```
 
 ## CLI Commands
@@ -134,7 +125,7 @@ The client now works as a CLI tool with multiple subcommands:
 Lists all files stored on the server with their metadata.
 
 ```bash
-./client/client list
+sync list
 ```
 
 Output example:
@@ -151,7 +142,7 @@ notes.txt                      1024       2025-09-10 14:35:45
 Compares local files with server files and shows synchronization status.
 
 ```bash
-./client/client status
+sync status
 ```
 
 Output example:
@@ -174,10 +165,10 @@ Uploads a single file to the server.
 
 ```bash
 # Upload file from local watch directory
-./client/client push document.pdf
+sync push document.pdf
 
 # Upload file with absolute path
-./client/client push /path/to/file.txt
+sync push /path/to/file.txt
 ```
 
 ### `sync watch`
@@ -185,7 +176,7 @@ Uploads a single file to the server.
 Runs the file watcher that automatically synchronizes files when they change.
 
 ```bash
-./client/client watch
+sync watch
 ```
 
 ## Configuration
@@ -213,7 +204,7 @@ To test the concurrent file upload feature:
 
 2. Start the client in watch mode:
    ```bash
-   ./client/client watch
+   sync watch
    ```
 
 3. Create multiple files simultaneously:
@@ -231,51 +222,7 @@ To test the concurrent file upload feature:
    [Worker-2] finished testfile2.txt
    ```
 
-## Building from Source
 
-### Prerequisites
-
-Ensure you have Go installed (version 1.24.1 or later):
-```bash
-go version
-```
-
-### Building
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/SauravGupta123/FileSync.git
-   cd FileSync
-   ```
-
-2. Initialize Go modules (if needed):
-   ```bash
-   go mod tidy
-   ```
-
-3. Build the client and server:
-   ```bash
-   go build -o client/client ./client
-   go build -o server/server ./server
-   ```
-
-### Cross-compilation
-
-To build for different platforms:
-
-```bash
-# For Windows
-GOOS=windows GOARCH=amd64 go build -o client/client.exe ./client
-GOOS=windows GOARCH=amd64 go build -o server/server.exe ./server
-
-# For Linux
-GOOS=linux GOARCH=amd64 go build -o client/client ./client
-GOOS=linux GOARCH=amd64 go build -o server/server ./server
-
-# For macOS
-GOOS=darwin GOARCH=amd64 go build -o client/client ./client
-GOOS=darwin GOARCH=amd64 go build -o server/server ./server
-```
 
 ## Project Structure
 
