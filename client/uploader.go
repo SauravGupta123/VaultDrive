@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -62,4 +63,48 @@ func deleteFile(serverURL, fileName string) error {
 
 	fmt.Printf("[DELETE] %s → success\n", fileName)
 	return nil
+}
+
+func downloadFile(serverURL, fileName, localPath string) error {
+	url := fmt.Sprintf("%s/download?name=%s", serverURL, fileName)
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("download request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed with status: %s", resp.Status)
+	}
+
+	// Create local file
+	out, err := os.Create(localPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local file: %w", err)
+	}
+	defer out.Close()
+
+	// Copy downloaded content to local file
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to save downloaded file: %w", err)
+	}
+
+	fmt.Printf("[DOWNLOAD] %s → success\n", fileName)
+	return nil
+}
+
+func calculateFileHash(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }

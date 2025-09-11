@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 )
 
@@ -70,5 +72,44 @@ func listHandler(cfg *Config) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(files)
+	}
+}
+
+func downloadHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		filename := r.URL.Query().Get("name")
+		if filename == "" {
+			http.Error(w, "missing filename", http.StatusBadRequest)
+			return
+		}
+
+		// Sanitize filename to prevent directory traversal
+		sanitizedFilename := filepath.Base(filename)
+		filePath := filepath.Join(cfg.StorageDir, sanitizedFilename)
+
+		// Check if file exists
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
+
+		// Set headers for file download
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", sanitizedFilename))
+		w.Header().Set("Content-Type", "application/octet-stream")
+
+		// Open file
+		file, err := os.Open(filePath)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to open file: %v", err), http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+
+		// Copy file to response
+		_, err = io.Copy(w, file)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to send file: %v", err), http.StatusInternalServerError)
+			return
+		}
 	}
 }
