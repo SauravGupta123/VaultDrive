@@ -7,6 +7,7 @@ A real-time file synchronization tool built with Go that automatically uploads f
 - [Introduction](#introduction)
 - [Features](#features)
 - [Technology Stack](#technology-stack)
+- [Go Concepts Used](#go-concepts-used)
 - [Architecture](#architecture)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -20,6 +21,8 @@ A real-time file synchronization tool built with Go that automatically uploads f
 
 File Synchronizer is a lightweight, efficient file synchronization tool that monitors a local directory for changes and automatically synchronizes files with a remote server. It uses file system notifications to detect changes in real-time and employs a worker pool pattern for concurrent file uploads, making it highly efficient for handling multiple files simultaneously.
 
+The tool now includes a web-based file manager with HTML preview capabilities for text and PDF files, making it easier to browse and preview files stored on the server.
+
 ## Features
 
 - **Real-time File Monitoring**: Automatically detects file creation, modification, and deletion events
@@ -31,6 +34,10 @@ File Synchronizer is a lightweight, efficient file synchronization tool that mon
 - **File Listing**: List files stored on the server with metadata
 - **Status Comparison**: Compare local and server files to see synchronization status
 - **Single File Upload**: Upload individual files on demand
+- **Two-way Synchronization**: Pull command for bidirectional file synchronization
+- **Web-based File Manager**: Browser interface to manage files on the server
+- **HTML Preview**: Preview text and PDF files directly in the browser
+- **Download Files**: Download files from the server to your local machine
 - **Logging**: Comprehensive logging for monitoring and debugging
 - **Error Handling**: Robust error handling for network and file operations
 
@@ -40,7 +47,19 @@ File Synchronizer is a lightweight, efficient file synchronization tool that mon
 - **fsnotify**: File system notifications library
 - **net/http**: Built-in HTTP client and server
 - **mime/multipart**: Multipart form data handling
+- **html/template**: HTML templating for web interface
 - **Cobra**: CLI library for command-line interface
+
+## Go Concepts Used
+
+- **Goroutines**: Lightweight threads for concurrent file processing
+- **Channels**: Communication mechanism between goroutines for job queuing
+- **Worker Pool Pattern**: Efficiently manages concurrent file uploads with a fixed number of workers
+- **WaitGroup**: Synchronization primitive to wait for all goroutines to complete
+- **Context**: Graceful shutdown handling with signal notifications
+- **Templates**: HTML templating for dynamic web content generation
+- **Error Handling**: Proper error handling with descriptive messages
+- **Concurrency Primitives**: Mutexes and other synchronization primitives for safe concurrent access
 
 ## Architecture
 
@@ -58,6 +77,7 @@ The application consists of two main components:
 - Stores files in a configurable directory
 - Provides REST API endpoints for file operations
 - Lists files with metadata (name, size, modification time)
+- Includes web-based file manager with HTML preview capabilities
 
 ## Installation
 
@@ -116,6 +136,9 @@ sync status
 
 # Upload a single file
 sync push <filename>
+
+# Two-way synchronization
+sync pull
 ```
 
 ## CLI Commands
@@ -171,6 +194,18 @@ sync push document.pdf
 sync push /path/to/file.txt
 ```
 
+### `sync pull`
+
+Runs a one-time two-way synchronization between local and server directories. This command compares files on both sides and:
+- Downloads files that exist on the server but not locally
+- Uploads files that exist locally but not on the server
+- For files that exist on both sides, compares modification times and synchronizes the newer version
+- Creates backups before overwriting files
+
+```bash
+sync pull
+```
+
 ### `sync watch`
 
 Runs the file watcher that automatically synchronizes files when they change.
@@ -192,6 +227,27 @@ The client configuration is hardcoded in `client/config.go`:
 The server configuration can be passed as command-line arguments:
 - **Port**: `-port=9090` (default: 9090)
 - **Storage Directory**: `-dir=./data/synced` (default: ./data/synced)
+
+## Web Interface
+
+The server includes a web-based file manager accessible at `http://localhost:9090/files` (or your configured port) that provides:
+
+### File Manager Features
+- Browse files and directories stored on the server
+- Upload files directly through the web interface
+- Download files from the server
+- Delete files from the server
+- Breadcrumb navigation for directory structure
+- File previews for supported formats
+
+### HTML Preview
+- **Text Files**: Preview content of text-based files (txt, md, log, csv, json, xml, html, css, js, go, py, java, c, cpp)
+- **PDF Files**: Embedded PDF viewer for direct preview
+- **Images**: Thumbnail previews for JPG, JPEG, PNG, and GIF files
+- File metadata display (size, modification time)
+- Responsive design for various screen sizes
+
+To access the web interface, start the server and navigate to `http://localhost:9090/files` in your browser.
 
 ## Testing Concurrency
 
@@ -222,7 +278,54 @@ To test the concurrent file upload feature:
    [Worker-2] finished testfile2.txt
    ```
 
+## Go Packages Used
 
+### Standard Library Packages
+- **fmt**: Formatted I/O operations
+- **net/http**: HTTP client and server implementations
+- **os**: Platform-independent interface to operating system functionality
+- **path/filepath**: File path manipulations
+- **encoding/json**: JSON encoding and decoding
+- **io**: Basic I/O interfaces and operations
+- **html/template**: Data-driven templates for generating HTML
+- **time**: Time and date operations
+- **sync**: Synchronization primitives
+- **crypto/sha256**: SHA-256 hash algorithm
+- **mime/multipart**: Multipart form data handling
+
+### Third-party Packages
+- **github.com/fsnotify/fsnotify**: File system notifications
+- **github.com/spf13/cobra**: CLI library for command-line applications
+
+## Building from Source
+
+To build the project from source:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/SauravGupta123/FileSync.git
+   cd FileSync
+   ```
+
+2. Build the client:
+   ```bash
+   go build -o sync ./client
+   ```
+
+3. Build the server:
+   ```bash
+   go build -o server/server ./server
+   ```
+
+4. Run the server:
+   ```bash
+   ./server/server
+   ```
+
+5. Run the client:
+   ```bash
+   ./sync --help
+   ```
 
 ## Project Structure
 
@@ -231,14 +334,19 @@ FileSync/
 ├── client/
 │   ├── config.go        # Client configuration
 │   ├── main.go          # Client entry point with CLI commands
-│   ├── uploader.go      # File upload/delete functions
+│   ├── uploader.go      # File upload/delete/download functions
 │   ├── watcher.go       # File system watcher with worker pool
+│   ├── sync.go          # Two-way synchronization functionality
 │   └── myfolder/        # Default directory to watch for changes
 ├── server/
 │   ├── config.go        # Server configuration
 │   ├── main.go          # Server entry point
 │   ├── handler.go       # HTTP request handlers
 │   ├── storage.go       # File storage operations
+│   ├── filemanager.go   # Web file manager and preview handlers
+│   ├── templates/       # HTML templates for web interface
+│   │   ├── files.html   # File manager template
+│   │   └── preview.html # File preview template
 │   └── data/
 │       └── synced/      # Default directory for stored files
 ├── shared/
@@ -255,6 +363,9 @@ FileSync/
 - `POST /upload` - Upload a file
 - `DELETE /delete?name={filename}` - Delete a file
 - `GET /list` - List files with metadata
+- `GET /download?name={filename}` - Download a file
+- `GET /files` - Web-based file manager interface
+- `GET /preview?name={filename}` - HTML preview of text/PDF files
 
 ## Logging
 
