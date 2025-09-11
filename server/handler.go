@@ -47,12 +47,28 @@ func deleteHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 
-		err := DeleteFile(cfg.StorageDir, filepath.Base(filename))
+		// Sanitize filename to prevent directory traversal
+		sanitizedFilename := filepath.Base(filename)
+
+		err := DeleteFile(cfg.StorageDir, sanitizedFilename)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to delete file %s: %v", filename, err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("failed to delete file %s: %v", sanitizedFilename, err), http.StatusInternalServerError)
 			return
 		}
 
 		json.NewEncoder(w).Encode(APIResponse{Status: "success", Message: "file deleted"})
+	}
+}
+
+func listHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		files, err := ListFiles(cfg.StorageDir)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to list files: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(files)
 	}
 }
