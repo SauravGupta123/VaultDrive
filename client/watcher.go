@@ -66,12 +66,15 @@ func watchFolder(cfg *Config) {
 				// Send file path to jobs channel instead of uploading directly
 				jobs <- event.Name
 
-			case event.Op&fsnotify.Remove == fsnotify.Remove:
-				go func(file string) {
-					if err := deleteFile(cfg.ServerURL, filepath.Base(file)); err != nil {
-						log.Printf("[ERROR] Delete failed: %v\n", err)
-					}
-				}(event.Name)
+			case event.Op&fsnotify.Remove == fsnotify.Remove,
+				event.Op&fsnotify.Rename == fsnotify.Rename:
+				file := event.Name
+				log.Printf("[DELETE] Deleting %s\n", filepath.Base(file))
+				if err := deleteFile(cfg.ServerURL, filepath.Base(file)); err != nil {
+					log.Printf("[ERROR] Delete failed for %s: %v\n", filepath.Base(file), err)
+				} else {
+					log.Printf("[DELETE] Successfully deleted %s from server\n", filepath.Base(file))
+				}
 			}
 
 		case err, ok := <-watcher.Errors:
