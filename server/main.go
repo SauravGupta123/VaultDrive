@@ -19,6 +19,7 @@ func main() {
 	http.HandleFunc("/upload", uploadHandler(cfg))
 	http.HandleFunc("/delete", deleteHandler(cfg))
 	http.HandleFunc("/list", listHandler(cfg))
+	http.HandleFunc("/download", downloadHandler(cfg))
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	fmt.Printf("Server running on %s\n", addr)
