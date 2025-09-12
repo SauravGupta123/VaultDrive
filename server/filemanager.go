@@ -25,10 +25,12 @@ type FileInfo struct {
 
 // FileManagerData holds data for the file manager template
 type FileManagerData struct {
-	Files       []FileInfo
-	CurrentPath string
-	BasePath    string
-	Breadcrumb  []string
+	Files          []FileInfo
+	CurrentPath    string
+	BasePath       string
+	Breadcrumb     []string
+	SuccessMessage string
+	ErrorMessage   string
 }
 
 // PreviewData holds data for the file preview template
@@ -106,6 +108,10 @@ func fileManagerHandler(cfg *Config) http.HandlerFunc {
 		if path == "" {
 			path = "."
 		}
+
+		// Get success or error messages from query parameters
+		successMessage := r.URL.Query().Get("success")
+		errorMessage := r.URL.Query().Get("error")
 
 		// Sanitize path to prevent directory traversal
 		sanitizedPath := filepath.Clean(path)
@@ -187,10 +193,12 @@ func fileManagerHandler(cfg *Config) http.HandlerFunc {
 
 		// Prepare data for template
 		data := FileManagerData{
-			Files:       files,
-			CurrentPath: sanitizedPath,
-			BasePath:    sanitizedPath,
-			Breadcrumb:  breadcrumb,
+			Files:          files,
+			CurrentPath:    sanitizedPath,
+			BasePath:       sanitizedPath,
+			Breadcrumb:     breadcrumb,
+			SuccessMessage: successMessage,
+			ErrorMessage:   errorMessage,
 		}
 
 		// Execute template

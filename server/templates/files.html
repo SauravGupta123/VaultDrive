@@ -30,6 +30,21 @@
             margin-bottom: 20px;
             border: 1px solid #e9ecef;
         }
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
         .file-table {
             width: 100%;
             border-collapse: collapse;
@@ -114,6 +129,18 @@
     <div class="container">
         <h1>File Manager</h1>
         
+        <!-- Alerts for success or error messages -->
+        {{with .SuccessMessage}}
+        <div class="alert alert-success">
+            {{.}}
+        </div>
+        {{end}}
+        {{with .ErrorMessage}}
+        <div class="alert alert-error">
+            {{.}}
+        </div>
+        {{end}}
+        
         <!-- Breadcrumb Navigation -->
         <div class="breadcrumb">
             <a href="/files">Home</a>
@@ -180,7 +207,7 @@
                     <td class="actions">
                         {{if not .IsDir}}
                             <a href="/download?name={{urlquery .RelPath}}" class="download-btn">Download</a>
-                            <a href="/delete?name={{urlquery .RelPath}}" class="delete-btn" onclick="return confirm('Are you sure you want to delete {{.Name}}?')">Delete</a>
+                            <a href="/delete?name={{urlquery .RelPath}}&redirect_path={{urlquery $.CurrentPath}}" class="delete-btn" onclick="return confirm('Are you sure you want to delete {{.Name}}?')">Delete</a>
                         {{end}}
                     </td>
                 </tr>
@@ -188,5 +215,15 @@
             </tbody>
         </table>
     </div>
+    
+    <script>
+        // Auto-hide alerts after 5 seconds
+        setTimeout(function() {
+            var alerts = document.querySelectorAll('.alert');
+            for (var i = 0; i < alerts.length; i++) {
+                alerts[i].style.display = 'none';
+            }
+        }, 5000);
+    </script>
 </body>
 </html>

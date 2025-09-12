@@ -66,21 +66,43 @@ func deleteHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 
+		// Get redirect path if provided (for web UI deletions)
+		redirectPath := r.URL.Query().Get("redirect_path")
+		// If not provided, try to get it from the referer header
+		if redirectPath == "" {
+			referer := r.Header.Get("Referer")
+			if referer != "" {
+				// Parse the referer URL to extract the path parameter
+				if u, err := url.Parse(referer); err == nil {
+					params := u.Query()
+					redirectPath = params.Get("path")
+				}
+			}
+		}
+		
+		// Default redirect path if none is provided or found
+		if redirectPath == "" {
+			redirectPath = "."
+		}
+
 		// Sanitize filename to prevent directory traversal
 		sanitizedFilename := filepath.Clean(filename)
 		// Additional security check
 		if strings.Contains(sanitizedFilename, "..") {
-			http.Error(w, "invalid filename", http.StatusBadRequest)
+			// For web UI, redirect back with error message in URL parameter
+			http.Redirect(w, r, "/files?path="+url.QueryEscape(redirectPath)+"&error="+url.QueryEscape("Invalid filename"), http.StatusSeeOther)
 			return
 		}
 
 		err := DeleteFile(cfg.StorageDir, sanitizedFilename)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to delete file %s: %v", sanitizedFilename, err), http.StatusInternalServerError)
+			// For web UI, redirect back with error message in URL parameter
+			http.Redirect(w, r, "/files?path="+url.QueryEscape(redirectPath)+"&error="+url.QueryEscape(fmt.Sprintf("Failed to delete file %s: %v", sanitizedFilename, err)), http.StatusSeeOther)
 			return
 		}
 
-		json.NewEncoder(w).Encode(APIResponse{Status: "success", Message: "file deleted"})
+		// For web UI, redirect back with success message in URL parameter
+		http.Redirect(w, r, "/files?path="+url.QueryEscape(redirectPath)+"&success="+url.QueryEscape("File deleted successfully"), http.StatusSeeOther)
 	}
 }
 
