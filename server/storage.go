@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/SauravGupta123/FileSync/shared"
 )
@@ -32,7 +33,13 @@ func SaveFile(storageDir, filename string, file io.Reader) error {
 }
 
 func DeleteFile(storageDir, filename string) error {
-	path := filepath.Join(storageDir, filename)
+	// Sanitize filename to prevent directory traversal
+	sanitizedFilename := filepath.Clean(filename)
+	if strings.Contains(sanitizedFilename, "..") {
+		return fmt.Errorf("invalid filename")
+	}
+	
+	path := filepath.Join(storageDir, sanitizedFilename)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return fmt.Errorf("file %s does not exist", path)
 	}

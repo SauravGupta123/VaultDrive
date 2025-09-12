@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type APIResponse struct {
@@ -30,10 +32,25 @@ func uploadHandler(cfg *Config) http.HandlerFunc {
 		}
 		defer file.Close()
 
-		filename := filepath.Base(header.Filename) // sanitize filename
+		// Get redirect path if provided (for web UI uploads)
+		redirectPath := r.FormValue("redirect_path")
+		
+		filename := filepath.Clean(header.Filename) // sanitize filename
+		// Additional security check
+		if strings.Contains(filename, "..") {
+			http.Error(w, "invalid filename", http.StatusBadRequest)
+			return
+		}
+		
 		err = SaveFile(cfg.StorageDir, filename, file)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to save file %s: %v", filename, err), http.StatusInternalServerError)
+			return
+		}
+
+		// If this is a web UI upload, redirect back to the file manager
+		if redirectPath != "" {
+			http.Redirect(w, r, "/files?path="+url.QueryEscape(redirectPath), http.StatusSeeOther)
 			return
 		}
 
@@ -50,7 +67,12 @@ func deleteHandler(cfg *Config) http.HandlerFunc {
 		}
 
 		// Sanitize filename to prevent directory traversal
-		sanitizedFilename := filepath.Base(filename)
+		sanitizedFilename := filepath.Clean(filename)
+		// Additional security check
+		if strings.Contains(sanitizedFilename, "..") {
+			http.Error(w, "invalid filename", http.StatusBadRequest)
+			return
+		}
 
 		err := DeleteFile(cfg.StorageDir, sanitizedFilename)
 		if err != nil {
@@ -84,7 +106,13 @@ func downloadHandler(cfg *Config) http.HandlerFunc {
 		}
 
 		// Sanitize filename to prevent directory traversal
-		sanitizedFilename := filepath.Base(filename)
+		sanitizedFilename := filepath.Clean(filename)
+		// Additional security check
+		if strings.Contains(sanitizedFilename, "..") {
+			http.Error(w, "invalid filename", http.StatusBadRequest)
+			return
+		}
+		
 		filePath := filepath.Join(cfg.StorageDir, sanitizedFilename)
 
 		// Check if file exists
@@ -94,7 +122,7 @@ func downloadHandler(cfg *Config) http.HandlerFunc {
 		}
 
 		// Set headers for file download
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", sanitizedFilename))
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filepath.Base(sanitizedFilename)))
 		w.Header().Set("Content-Type", "application/octet-stream")
 
 		// Open file

@@ -20,6 +20,11 @@ func main() {
 	http.HandleFunc("/delete", deleteHandler(cfg))
 	http.HandleFunc("/list", listHandler(cfg))
 	http.HandleFunc("/download", downloadHandler(cfg))
+	http.HandleFunc("/files", fileManagerHandler(cfg))
+	http.HandleFunc("/preview", previewHandler(cfg))
+
+	// Serve static files (for thumbnails, etc.)
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	fmt.Printf("Server running on %s\n", addr)
