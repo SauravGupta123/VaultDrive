@@ -1,4 +1,4 @@
-# File Synchronizer
+# Vault Drive
 
 A real-time file synchronization tool built with Go that automatically uploads files from a local directory to a remote server when they are created or modified, and deletes them remotely when removed locally.
 
