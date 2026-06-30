@@ -11,7 +11,7 @@ type Config struct {
 
 func LoadConfig() *Config {
 	server := "http://localhost:9090"
-	dir := "./myfolder"
+	dir := "/Users/sauravgupta/Web Dev projects/VaultDrive/myfolder"
 
 	log.Printf("[CONFIG] Server: %s | WatchDir: %s\n", server, dir)
 

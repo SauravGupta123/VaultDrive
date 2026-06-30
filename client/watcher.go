@@ -43,6 +43,11 @@ func watchFolder(cfg *Config) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
+	// Debouncing: track pending files and their timers
+	pendingFiles := make(map[string]*time.Timer)
+	var pendingMutex sync.Mutex
+	debounceDelay := 1 * time.Second // Coalesce events within 1 second
+
 	log.Printf("[WATCH] Watching folder: %s with %d workers\n", cfg.WatchDir, numWorkers)
 
 	// Main event loop
@@ -63,8 +68,27 @@ func watchFolder(cfg *Config) {
 			switch {
 			case event.Op&fsnotify.Create == fsnotify.Create,
 				event.Op&fsnotify.Write == fsnotify.Write:
-				// Send file path to jobs channel instead of uploading directly
-				jobs <- event.Name
+				// Debounce: Reset timer if file already pending, otherwise create new timer
+				pendingMutex.Lock()
+				if timer, exists := pendingFiles[event.Name]; exists {
+					// File already has a pending timer, reset it
+					timer.Stop()
+					log.Printf("[DEBOUNCE] Reset timer for %s\n", filepath.Base(event.Name))
+				}
+				
+				// Create/recreate timer that will fire after debounceDelay
+				pendingFiles[event.Name] = time.AfterFunc(debounceDelay, func() {
+					// After delay, send to jobs channel
+					jobs <- event.Name
+					
+					// Remove from pending map
+					pendingMutex.Lock()
+					delete(pendingFiles, event.Name)
+					pendingMutex.Unlock()
+					
+					log.Printf("[QUEUED] %s added to upload queue\n", filepath.Base(event.Name))
+				})
+				pendingMutex.Unlock()
 
 			case event.Op&fsnotify.Remove == fsnotify.Remove,
 				event.Op&fsnotify.Rename == fsnotify.Rename:
@@ -87,6 +111,16 @@ func watchFolder(cfg *Config) {
 
 		case <-sigChan:
 			log.Println("[INFO] Shutdown signal received, closing jobs channel...")
+			
+			// Cancel all pending timers and flush to jobs queue
+			pendingMutex.Lock()
+			for filePath, timer := range pendingFiles {
+				timer.Stop()
+				jobs <- filePath
+				log.Printf("[FLUSH] Flushing pending file %s to queue\n", filepath.Base(filePath))
+			}
+			pendingMutex.Unlock()
+			
 			close(jobs)
 			wg.Wait()
 			log.Println("[INFO] All workers finished, exiting...")
@@ -101,9 +135,6 @@ func worker(id int, jobs <-chan string, serverURL string, wg *sync.WaitGroup) {
 
 	for filePath := range jobs {
 		log.Printf("[Worker-%d] starting upload %s\n", id, filepath.Base(filePath))
-
-		// Delay slightly to avoid partial writes
-		time.Sleep(500 * time.Millisecond)
 
 		if err := uploadFile(serverURL, filePath); err != nil {
 			log.Printf("[ERROR] Upload failed: %v\n", err)

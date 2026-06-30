@@ -18,8 +18,8 @@ type APIResponse struct {
 
 func uploadHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Parse multipart form (max 10MB file for demo)
-		err := r.ParseMultipartForm(10 << 20)
+		// Parse multipart form (increase limit to 1GB for larger files)
+		err := r.ParseMultipartForm(1024 << 20) // 1GB
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to parse form: %v", err), http.StatusBadRequest)
 			return
@@ -32,6 +32,9 @@ func uploadHandler(cfg *Config) http.HandlerFunc {
 		}
 		defer file.Close()
 
+		// Get client-provided checksum if present
+		clientChecksum := r.FormValue("checksum")
+
 		// Get redirect path if provided (for web UI uploads)
 		redirectPath := r.FormValue("redirect_path")
 		
@@ -41,12 +44,25 @@ func uploadHandler(cfg *Config) http.HandlerFunc {
 			http.Error(w, "invalid filename", http.StatusBadRequest)
 			return
 		}
-		
-		err = SaveFile(cfg.StorageDir, filename, file)
+
+		// Save file and calculate checksum
+		serverChecksum, err := SaveFileWithChecksum(cfg.StorageDir, filename, file)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to save file %s: %v", filename, err), http.StatusInternalServerError)
 			return
 		}
+
+		// Validate checksum if client provided one
+		if clientChecksum != "" && clientChecksum != serverChecksum {
+			// Checksum mismatch - delete the corrupted file
+			DeleteFile(cfg.StorageDir, filename)
+			errorMsg := fmt.Sprintf("checksum mismatch: expected %s, got %s", clientChecksum, serverChecksum)
+			http.Error(w, errorMsg, http.StatusBadRequest)
+			fmt.Printf("[ERROR] Upload rejected: %s\n", errorMsg)
+			return
+		}
+
+		fmt.Printf("[UPLOAD] Saved file: %s (checksum: %s)\n", filename, serverChecksum)
 
 		// If this is a web UI upload, redirect back to the file manager
 		if redirectPath != "" {
