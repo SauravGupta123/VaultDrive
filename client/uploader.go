@@ -18,29 +18,80 @@ func uploadFile(serverURL, filePath string) error {
 	}
 	defer file.Close()
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	// Get file info for size
+	fileInfo, err := file.Stat()
 	if err != nil {
-		return fmt.Errorf("failed to create form file: %w", err)
+		return fmt.Errorf("failed to stat file: %w", err)
 	}
-	_, err = io.Copy(part, file)
-	if err != nil {
-		return fmt.Errorf("failed to copy file: %w", err)
-	}
-	writer.Close()
 
-	resp, err := http.Post(serverURL+"/upload", writer.FormDataContentType(), body)
+	// Calculate checksum while reading file
+	hash := sha256.New()
+	file.Seek(0, 0) // Reset to beginning
+	
+	// Use pipe to stream multipart form without loading into memory
+	pipeReader, pipeWriter := io.Pipe()
+	writer := multipart.NewWriter(pipeWriter)
+
+	// Start goroutine to write multipart form data
+	go func() {
+		defer pipeWriter.Close()
+		defer writer.Close()
+
+		// Add checksum field
+		checksumWriter, err := writer.CreateFormField("checksum")
+		if err != nil {
+			pipeWriter.CloseWithError(fmt.Errorf("failed to create checksum field: %w", err))
+			return
+		}
+
+		// Calculate checksum by reading file once
+		teeReader := io.TeeReader(file, hash)
+		tempBuf := new(bytes.Buffer)
+		if _, err := io.Copy(tempBuf, teeReader); err != nil {
+			pipeWriter.CloseWithError(fmt.Errorf("failed to read file for checksum: %w", err))
+			return
+		}
+		checksum := fmt.Sprintf("%x", hash.Sum(nil))
+		checksumWriter.Write([]byte(checksum))
+
+		// Add file field
+		part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+		if err != nil {
+			pipeWriter.CloseWithError(fmt.Errorf("failed to create form file: %w", err))
+			return
+		}
+
+		// Stream file content from temp buffer
+		if _, err := io.Copy(part, tempBuf); err != nil {
+			pipeWriter.CloseWithError(fmt.Errorf("failed to copy file: %w", err))
+			return
+		}
+	}()
+
+	// Create HTTP request with streaming body
+	req, err := http.NewRequest("POST", serverURL+"/upload", pipeReader)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	
+	// Don't set Content-Length - let it be chunked transfer encoding
+	// req.ContentLength = fileInfo.Size() // This was incorrect due to multipart overhead
+
+	// Execute request
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("upload request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("upload failed with status: %s", resp.Status)
+		// Read error response
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("upload failed with status %s: %s", resp.Status, string(bodyBytes))
 	}
 
-	fmt.Printf("[UPLOAD] %s → success\n", filepath.Base(filePath))
+	fmt.Printf("[UPLOAD] %s → success (size: %d bytes)\n", filepath.Base(filePath), fileInfo.Size())
 	return nil
 }
 
